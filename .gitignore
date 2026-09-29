@@ -1,0 +1,13 @@
+# Never commit bank statements or backups
+*.csv
+*.xlsx
+*.xls
+*.pdf
+*.ofx
+*.qif
+*.json.enc
+*backup*.json
+statements/
+data/
+node_modules/
+.DS_Store

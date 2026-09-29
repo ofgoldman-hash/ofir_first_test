@@ -1,0 +1,10 @@
+{
+  "name": "family-budget",
+  "private": true,
+  "type": "module",
+  "description": "Local-first, encrypted family budget built from bank statements",
+  "scripts": {
+    "start": "python3 -m http.server 8080 --bind 127.0.0.1",
+    "test": "node --test tests/*.test.js"
+  }
+}
