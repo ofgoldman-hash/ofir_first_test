@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; form-action 'none'; base-uri 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <title>ניהול גישה – התקציב המשפחתי</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/admin.js"></script>
+</head>
+<body>
+  <header class="top">
+    <strong class="brand">ניהול גישה</strong>
+    <nav><a class="tab" href="/">← חזרה לאתר</a></nav>
+    <a class="tab" href="/api/auth/logout">יציאה</a>
+  </header>
+  <main>
+    <section class="card">
+      <h2>הוספת מספר מורשה</h2>
+      <p class="muted">רק מספרים ברשימה יכולים לקבל קוד כניסה חד-פעמי ב-SMS. הסרת מספר מנתקת אותו מיד.</p>
+      <form id="add-form" class="mapping">
+        <label>מספר טלפון<input type="tel" name="phone" inputmode="tel" placeholder="05X-XXXXXXX" required></label>
+        <label>שם<input name="name" maxlength="60" placeholder="לדוגמה: בן/בת זוג"></label>
+        <label class="check"><input type="checkbox" name="admin">מנהל (יכול לנהל מספרים)</label>
+        <button class="primary" type="submit">הוספה</button>
+      </form>
+      <p class="error" id="error" role="alert"></p>
+    </section>
+    <section class="card">
+      <h2>מספרים מורשים</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>מספר</th><th>שם</th><th>הרשאה</th><th>נוסף</th><th></th></tr></thead>
+        <tbody id="rows"><tr><td colspan="5">טוען…</td></tr></tbody>
+      </table></div>
+    </section>
+  </main>
+</body>
+</html>

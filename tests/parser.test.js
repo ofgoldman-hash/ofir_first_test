@@ -4,7 +4,7 @@ import { deflateRawSync } from 'node:zlib';
 import {
   parseAmount, parseDate, parseCSV, detectColumns, findHeaderRow, buildTransactions,
   readFileRows, decodeText, parseHTMLTable,
-} from '../js/parser.js';
+} from '../public/js/parser.js';
 
 test('parseAmount handles Israeli formats', () => {
   assert.equal(parseAmount('1,234.56'), 1234.56);
@@ -123,4 +123,22 @@ test('unescaped Hebrew quotes (בע"מ, ש"ח) inside unquoted fields', () => {
 test('delimiter detection ignores commas inside quoted amounts', () => {
   const rows = parseCSV('תאריך;תיאור;סכום\n01/01/2026;משכורת;"21,500.00"\n02/01/2026;חשמל בע"מ;"-1,200.00"\n');
   assert.deepEqual(rows[2], ['02/01/2026', 'חשמל בע"מ', '-1,200.00']);
+});
+
+test('XLSX with prefixed tags, custom sheet names and a summary sheet first', async () => {
+  const xlsx = zip({
+    'xl/sharedStrings.xml': '<x:sst><x:si><x:t>תאריך</x:t></x:si><x:si><x:t>תיאור</x:t></x:si><x:si><x:t>סכום</x:t></x:si><x:si><x:t>ארנונה</x:t></x:si></x:sst>',
+    'xl/worksheets/summary.xml': '<x:worksheet><x:sheetData>'
+      + '<x:row r="1"><x:c r="A1" t="inlineStr"><x:is><x:t>סיכום</x:t></x:is></x:c></x:row>'
+      + '<x:row r="2"><x:c r="A2"><x:v>1</x:v></x:c></x:row><x:row r="3"><x:c r="A3"><x:v>2</x:v></x:c></x:row>'
+      + '<x:row r="4"><x:c r="A4"><x:v>3</x:v></x:c></x:row></x:sheetData></x:worksheet>',
+    'xl/worksheets/transactions.xml': '<x:worksheet><x:sheetData>'
+      + '<x:row r="1"><x:c r="A1" t="s"><x:v>0</x:v></x:c><x:c r="B1" t="s"><x:v>1</x:v></x:c><x:c r="C1" t="s"><x:v>2</x:v></x:c></x:row>'
+      + '<x:row r="2"><x:c r="A2"><x:v>46086</x:v></x:c><x:c r="B2" t="s"><x:v>3</x:v></x:c><x:c r="C2"><x:v>-820</x:v></x:c></x:row>'
+      + '</x:sheetData></x:worksheet>',
+  });
+  const rows = await readFileRows('s.xlsx', xlsx);
+  const h = findHeaderRow(rows);
+  assert.deepEqual(buildTransactions(rows, h, detectColumns(rows[h])),
+    [{ date: '2026-03-05', description: 'ארנונה', amount: -820 }]);
 });

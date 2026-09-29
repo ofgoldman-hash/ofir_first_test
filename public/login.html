@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; form-action 'none'; base-uri 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <title>כניסה – התקציב המשפחתי</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/login.js"></script>
+</head>
+<body>
+  <main>
+    <section class="lock card">
+      <h1>התקציב המשפחתי</h1>
+      <p class="muted">כניסה עם קוד חד-פעמי שנשלח ב-SMS למספר מורשה.</p>
+      <form id="phone-form">
+        <label>מספר טלפון
+          <input type="tel" name="phone" inputmode="tel" autocomplete="tel" placeholder="05X-XXXXXXX" required autofocus>
+        </label>
+        <button class="primary" type="submit">שליחת קוד</button>
+      </form>
+      <form id="code-form" hidden>
+        <p id="sent-msg"></p>
+        <label>קוד מה-SMS
+          <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="\d{4,10}" maxlength="10" required>
+        </label>
+        <button class="primary" type="submit">כניסה</button>
+        <button type="button" id="change-phone" class="link">החלפת מספר / שליחה מחדש</button>
+      </form>
+      <p class="error" id="error" role="alert"></p>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,31 +1,19 @@
-# Static site: no build step, publish the repository root.
+# Static site in public/ plus serverless functions for SMS (OTP) login.
 [build]
-  publish = "."
+  publish = "public"
 
-# Security headers. The CSP mirrors the <meta> tag in index.html and adds
-# frame-ancestors, which only works as a real HTTP header.
+# Security headers for statically served files. Pages behind the login gate
+# (netlify/edge-functions/gate.ts) get the same headers from the edge function.
+# connect-src 'self' is needed by the login and admin pages; the budget app itself
+# (index.html) narrows it to 'none' in its own CSP meta tag.
 [[headers]]
   for = "/*"
   [headers.values]
-    Content-Security-Policy = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'"
+    Content-Security-Policy = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "no-referrer"
     Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
     Cross-Origin-Opener-Policy = "same-origin"
-    Cross-Origin-Resource-Policy = "same-origin"
     Strict-Transport-Security = "max-age=31536000; includeSubDomains"
     X-Robots-Tag = "noindex, nofollow"
-
-# Don't serve development files.
-[[redirects]]
-  from = "/tests/*"
-  to = "/404"
-  status = 404
-  force = true
-
-[[redirects]]
-  from = "/package.json"
-  to = "/404"
-  status = 404
-  force = true

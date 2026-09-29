@@ -5,6 +5,8 @@ import { netChart, layersChart, LAYERS } from './charts.js';
 import { esc, money, moneyExact, monthLabel, dateLabel } from './format.js';
 
 const $ = sel => document.querySelector(sel);
+// Login / access management exist only on the hosted site (Netlify), not on a local server.
+const ONLINE = !['localhost', '127.0.0.1', ''].includes(location.hostname);
 const app = $('#app');
 
 const state = {
@@ -27,7 +29,7 @@ function persist() {
   saveTimer = setTimeout(async () => {
     try {
       await store.saveVault(session, data);
-      flash('נשמר (מוצפן)');
+      if (!$('#status')?.textContent) flash('נשמר (מוצפן)'); // don't hide a more useful message
     } catch (e) {
       flash('שמירה נכשלה: ' + e.message, true);
     }
@@ -128,7 +130,9 @@ function renderShell(content) {
     <strong class="brand">התקציב המשפחתי</strong>
     <nav>${tabs.map(([k, v]) => `<button class="tab${state.view === k ? ' active' : ''}" data-action="nav" data-view="${k}">${v}</button>`).join('')}</nav>
     <span id="status" class="status" aria-live="polite"></span>
-    <button data-action="lock" title="נעילה">🔒 נעילה</button>
+    ${ONLINE ? '<a class="tab" href="/admin.html">ניהול גישה</a>' : ''}
+    <button data-action="lock" title="נעילת הנתונים המוצפנים">🔒 נעילה</button>
+    ${ONLINE ? '<a class="tab" href="/api/auth/logout">יציאה</a>' : ''}
   </header>
   <main>${content}</main>`;
   hydrate();
@@ -291,13 +295,19 @@ function renderTransactions() {
   </section>`);
 }
 
+function pendingPreview(p) {
+  return buildTransactions(p.rows, p.headerRow, p.map, { invert: p.invert });
+}
+
 function renderImport() {
-  const pending = state.pending.map((p, i) => {
+  const cards = state.pending.map((p, i) => {
     if (p.error) return `<div class="card error-card"><b>${esc(p.fileName)}</b>: ${esc(p.error)} <button data-action="drop-pending" data-i="${i}">הסר</button></div>`;
     const header = p.rows[p.headerRow] || [];
     const colOpts = sel => `<option value="-1">—</option>` + header.map((h, c) =>
       `<option value="${c}"${sel === c ? ' selected' : ''}>${esc(h || `עמודה ${c + 1}`)}</option>`).join('');
-    const preview = buildTransactions(p.rows, p.headerRow, p.map, { invert: p.invert });
+    const preview = pendingPreview(p);
+    const rawRows = p.rows.slice(p.headerRow, p.headerRow + 6);
+    const width = Math.max(0, ...rawRows.map(r => r.length));
     return `<div class="card">
       <h3>${esc(p.fileName)} <span class="muted">· ${preview.length} תנועות זוהו</span></h3>
       <div class="mapping">
@@ -310,27 +320,41 @@ function renderImport() {
         <label>שם החשבון<input value="${esc(p.account)}" data-pending="${i}" data-field="account"></label>
         <label class="check"><input type="checkbox" ${p.invert ? 'checked' : ''} data-pending="${i}" data-field="invert">חיובים מופיעים כמספר חיובי (כרטיס אשראי)</label>
       </div>
-      <div class="table-wrap"><table class="num"><thead><tr><th>תאריך</th><th>תיאור</th><th>סכום</th></tr></thead>
+      ${preview.length ? `<div class="table-wrap"><table class="num"><thead><tr><th>תאריך</th><th>תיאור</th><th>סכום</th></tr></thead>
         <tbody>${preview.slice(0, 8).map(t => `<tr><td>${dateLabel(t.date)}</td><td>${esc(t.description)}</td><td class="${t.amount >= 0 ? 'pos-t' : ''}">${moneyExact(t.amount)}</td></tr>`).join('')}</tbody>
       </table></div>
-      <p class="muted">בדקו שהוצאות מופיעות במינוס והכנסות בפלוס.</p>
-      <button class="primary" data-action="confirm-import" data-i="${i}" ${preview.length ? '' : 'disabled'}>ייבוא ${preview.length} תנועות</button>
+      <p class="muted">בדקו שהוצאות מופיעות במינוס והכנסות בפלוס.</p>` : `
+      <p class="warn">לא זוהו תנועות בקובץ. בחרו למעלה את שורת הכותרות ואת העמודות של תאריך, תיאור וסכום (או חובה/זכות). כך נראות השורות הראשונות:</p>
+      <div class="table-wrap"><table><tbody>${rawRows.map((r, k) => `<tr><td class="muted">${p.headerRow + k + 1}</td>${
+        Array.from({ length: width }, (_, c) => `<td>${esc(r[c] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`}
+      <button class="primary" data-action="confirm-import" data-i="${i}" ${preview.length ? '' : 'disabled'}>ייבוא ${preview.length} תנועות מהקובץ</button>
       <button data-action="drop-pending" data-i="${i}">ביטול</button>
     </div>`;
   }).join('');
 
+  const total = state.pending.filter(p => !p.error).reduce((n, p) => n + pendingPreview(p).length, 0);
+  const pendingSection = state.pending.length ? `
+  <section class="card pending-bar" id="pending">
+    <h2>${state.pending.length === 1 ? 'קובץ אחד ממתין' : `${state.pending.length} קבצים ממתינים`} לאישור</h2>
+    <p>בדקו את התצוגה המקדימה של כל קובץ למטה (הוצאות במינוס, הכנסות בפלוס) ולחצו ייבוא.</p>
+    <button class="primary" data-action="import-all" ${total ? '' : 'disabled'}>ייבוא כל הקבצים (${total} תנועות)</button>
+    <button data-action="drop-all">ביטול הכל</button>
+  </section>
+  ${cards}` : '';
+
   renderShell(`
+  ${pendingSection}
   <section class="card">
-    <h2>ייבוא תדפיסים</h2>
-    <p>הורידו מאתר הבנק / חברת האשראי את פירוט התנועות כקובץ <b>Excel (xlsx)</b>, <b>CSV</b> או <b>xls</b> וגררו לכאן.
+    <h2>${state.pending.length ? 'הוספת קבצים נוספים' : 'ייבוא תדפיסים'}</h2>
+    <p>הורידו מאתר הבנק / חברת האשראי את פירוט התנועות כקובץ <b>Excel (xlsx)</b>, <b>CSV</b> או <b>xls</b>, ובחרו את הקבצים או תיקייה שלמה.
     הקבצים מעובדים בדפדפן בלבד ולא נשמרים – רק התנועות נשמרות, מוצפנות.</p>
     <label class="drop" data-drop>
-      <input type="file" multiple accept=".csv,.xlsx,.xls,.txt,.html" data-change="files">
-      <span>גררו קבצים לכאן או לחצו לבחירה</span>
+      <input type="file" multiple accept="${ACCEPT}" data-change="files">
+      <span>גררו קבצים או תיקייה לכאן, או לחצו לבחירת קבצים</span>
     </label>
+    <label class="button">📁 בחירת תיקייה שלמה<input type="file" webkitdirectory multiple data-change="files" class="sr-only"></label>
     <p class="muted">טיפ: כשמייבאים גם עו"ש וגם כרטיסי אשראי, שורת החיוב החודשי של הכרטיס בעו"ש מסומנת כ"לא נספר" כדי שלא תיספר פעמיים.</p>
   </section>
-  ${pending}
   ${state.data.imports.length ? `<section class="card"><h2>ייבואים קודמים</h2>
     <div class="table-wrap"><table class="num"><thead><tr><th>קובץ</th><th>חשבון</th><th>תאריך ייבוא</th><th>תנועות</th><th></th></tr></thead>
     <tbody>${state.data.imports.slice().reverse().map(im => `<tr><td>${esc(im.fileName)}</td><td>${esc(im.account)}</td>
@@ -408,32 +432,47 @@ function hydrate() {
 
 // ---------- import ----------
 
+const ACCEPT = '.csv,.tsv,.txt,.xlsx,.xls,.html,.htm';
+const SUPPORTED = /\.(csv|tsv|txt|xlsx|xls|html?)$/i;
+
 async function addFiles(files) {
-  for (const file of files) {
+  const all = [...files];
+  // Folders bring along unrelated files (.DS_Store, PDFs, images...): keep statements only.
+  const usable = all.filter(f => SUPPORTED.test(f.name) && !f.name.startsWith('.'));
+  if (!usable.length) {
+    flash(all.length ? 'לא נמצאו קבצי תדפיס נתמכים (xlsx / xls / csv)' : 'לא נבחרו קבצים', true);
+    return;
+  }
+  flash(`מעבד ${usable.length} קבצים…`);
+  for (const file of usable) {
     try {
       const rows = await readFileRows(file.name, await file.arrayBuffer());
-      const headerRow = findHeaderRow(rows);
-      if (headerRow < 0) throw new Error('header');
+      const found = findHeaderRow(rows);
+      if (!rows.length) throw new Error('empty');
+      const headerRow = Math.max(0, found);
       const map = detectColumns(rows[headerRow]);
       state.pending.push({
-        fileName: file.name, rows, headerRow, map, invert: map.invert,
+        fileName: file.webkitRelativePath || file.name, rows, headerRow, map, invert: map.invert,
         account: file.name.replace(/\.[^.]+$/, ''),
       });
     } catch (e) {
       const msg = {
         'xls-binary': 'קובץ Excel בפורמט ישן (xls). פתחו אותו ב-Excel ושמרו כ-xlsx או CSV.',
         pdf: 'קבצי PDF אינם נתמכים. הורידו מאתר הבנק את התנועות כקובץ Excel או CSV.',
-        header: 'לא נמצאה שורת כותרות (תאריך / תיאור / סכום).',
+        empty: 'הקובץ ריק.',
       }[e.message] || `שגיאה בקריאת הקובץ (${e.message})`;
       state.pending.push({ fileName: file.name, error: msg });
     }
   }
+  state.view = 'import';
   render();
+  document.getElementById('pending')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const skipped = all.length - usable.length;
+  flash(`${usable.length} קבצים מוכנים – בדקו ולחצו "ייבוא"${skipped ? ` (${skipped} קבצים אחרים דולגו)` : ''}`);
 }
 
-function importPending(i) {
-  const p = state.pending[i];
-  const parsed = buildTransactions(p.rows, p.headerRow, p.map, { invert: p.invert });
+function importOne(p) {
+  const parsed = pendingPreview(p);
   const existing = new Set(txs().map(t => t.fp));
   const seen = new Map();
   const importId = crypto.randomUUID();
@@ -450,10 +489,46 @@ function importPending(i) {
     added++;
   }
   state.data.imports.push({ id: importId, fileName: p.fileName, account: p.account, date: new Date().toISOString(), count: added });
-  state.pending.splice(i, 1);
+  return { added, dup };
+}
+
+function finishImport(added, dup) {
   persist();
+  if (!state.pending.length) state.view = 'dashboard';
   render();
+  window.scrollTo(0, 0);
   flash(`יובאו ${added} תנועות${dup ? `, ${dup} כפולות דולגו` : ''}`);
+}
+
+function importPending(i) {
+  const { added, dup } = importOne(state.pending[i]);
+  state.pending.splice(i, 1);
+  finishImport(added, dup);
+}
+
+function importAllPending() {
+  let added = 0, dup = 0;
+  for (const p of state.pending.filter(x => !x.error && pendingPreview(x).length)) {
+    const r = importOne(p);
+    added += r.added; dup += r.dup;
+    p.done = true;
+  }
+  state.pending = state.pending.filter(p => !p.done);
+  finishImport(added, dup);
+}
+
+// Recursively collect files from a dropped folder.
+async function entryFiles(entry) {
+  if (entry.isFile) return [await new Promise((res, rej) => entry.file(res, rej))];
+  if (!entry.isDirectory) return [];
+  const reader = entry.createReader();
+  const entries = [];
+  for (;;) {
+    const batch = await new Promise((res, rej) => reader.readEntries(res, rej));
+    if (!batch.length) break;
+    entries.push(...batch);
+  }
+  return (await Promise.all(entries.map(entryFiles))).flat();
 }
 
 // ---------- events ----------
@@ -538,6 +613,8 @@ document.addEventListener('click', async e => {
       break;
     case 'drop-pending': state.pending.splice(Number(el.dataset.i), 1); render(); break;
     case 'confirm-import': importPending(Number(el.dataset.i)); break;
+    case 'import-all': importAllPending(); break;
+    case 'drop-all': state.pending = []; render(); break;
     case 'delete-import': {
       const im = state.data.imports.find(x => x.id === el.dataset.id);
       if (im && confirm(`למחוק את ${im.count} התנועות שיובאו מ-"${im.fileName}"?`)) {
@@ -648,7 +725,12 @@ document.addEventListener('drop', e => {
   const zone = e.target.closest('[data-drop]');
   if (!zone) return;
   e.preventDefault();
-  addFiles([...e.dataTransfer.files]);
+  zone.classList.remove('over');
+  // Entries must be taken synchronously, before the drop event ends.
+  const entries = [...(e.dataTransfer.items || [])].map(it => it.webkitGetAsEntry?.()).filter(Boolean);
+  const plain = [...e.dataTransfer.files];
+  (entries.length ? Promise.all(entries.map(entryFiles)).then(r => r.flat()) : Promise.resolve(plain))
+    .then(addFiles, () => addFiles(plain));
 });
 
 // Tooltips for chart hit targets.

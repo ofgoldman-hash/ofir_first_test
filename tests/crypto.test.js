@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { deriveKey, encryptJSON, decryptJSON, randomBytes } from '../js/crypto.js';
+import { deriveKey, encryptJSON, decryptJSON, randomBytes } from '../public/js/crypto.js';
 
 test('encrypt/decrypt round trip; wrong passphrase fails', async () => {
   const salt = randomBytes(16);
