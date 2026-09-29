@@ -2,7 +2,7 @@
 import {
   type Env, type KV, type PhoneEntry,
   loadState, savePhones, normalizePhone, findPhone, effectivePhones, currentUser,
-  sendCode, checkCode, signSession, sessionCookie, clearCookie, json, sameOrigin,
+  sendCode, sendErrorMessage, checkCode, signSession, sessionCookie, clearCookie, json, sameOrigin,
 } from './auth.ts';
 
 export interface Deps {
@@ -26,7 +26,12 @@ export async function handleSend(req: Request, { store, env, fetch }: Deps): Pro
   // Only allowlisted numbers ever trigger an SMS (prevents SMS pumping / cost abuse).
   if (findPhone(state, env, phone)) {
     try {
-      if (!(await sendCode(env, fetch, phone))) return json({ error: 'send-failed', message: 'שליחת ה-SMS נכשלה. נסו שוב בעוד מספר דקות.' }, 502);
+      const sent = await sendCode(env, fetch, phone);
+      if (!sent.ok) {
+        // Visible in Netlify → Logs → Functions → auth-send.
+        console.error('Twilio Verify send failed', { code: sent.twilioCode, message: sent.twilioMessage });
+        return json({ error: 'send-failed', twilioCode: sent.twilioCode, message: sendErrorMessage(sent) }, 502);
+      }
     } catch (e) {
       if ((e as Error).message === 'twilio-not-configured') return json({ error: 'not-configured', message: 'שירות ה-SMS עדיין לא הוגדר באתר.' }, 503);
       throw e;

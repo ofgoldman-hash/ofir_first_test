@@ -145,9 +145,37 @@ function twilio(env: Env, fetchFn: Fetch, path: string, form: Record<string, str
   });
 }
 
-export async function sendCode(env: Env, fetchFn: Fetch, phone: string): Promise<boolean> {
+export interface SendResult {
+  ok: boolean;
+  twilioCode?: number;
+  twilioMessage?: string;
+}
+
+export async function sendCode(env: Env, fetchFn: Fetch, phone: string): Promise<SendResult> {
   const res = await twilio(env, fetchFn, 'Verifications', { To: phone, Channel: 'sms', Locale: 'he' });
-  return res.ok;
+  if (res.ok) return { ok: true };
+  const err = await res.json().catch(() => ({}));
+  return { ok: false, twilioCode: Number(err?.code) || res.status, twilioMessage: String(err?.message ?? res.statusText ?? '') };
+}
+
+// Hebrew explanations for the Twilio errors a site owner can actually fix.
+const TWILIO_ERRORS: Record<number, string> = {
+  20003: 'פרטי החשבון של Twilio שגויים (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN). תקנו ב-Netlify ופרסמו מחדש (Trigger deploy).',
+  20404: 'שירות ה-Verify לא נמצא. בדקו את TWILIO_VERIFY_SERVICE_SID ב-Netlify ופרסמו מחדש.',
+  20429: 'יותר מדי בקשות ל-Twilio. נסו שוב בעוד דקה.',
+  21408: 'שליחת SMS לישראל לא מאושרת בחשבון Twilio. אפשרו את ישראל ב-Geo permissions.',
+  21608: 'חשבון Twilio בתקופת ניסיון שולח רק למספרים מאומתים. הוסיפו את המספר ב-Phone Numbers → Verified Caller IDs, או שדרגו את החשבון.',
+  60200: 'Twilio לא קיבל את מספר הטלפון.',
+  60203: 'נשלחו יותר מדי קודים למספר הזה. נסו שוב בעוד 10 דקות.',
+  60205: 'המספר לא יכול לקבל SMS (אולי מספר קווי).',
+  60223: 'ערוץ ה-SMS כבוי בשירות ה-Verify. הפעילו SMS בהגדרות השירות ב-Twilio.',
+  60410: 'Twilio חסם זמנית שליחה לקידומת הזו (Fraud Guard). אפשר לבטל ב-Verify → Settings.',
+  60605: 'שליחת קודים לישראל חסומה ב-Twilio. אפשרו את ישראל ב-Verify → Settings → Geo permissions.',
+};
+
+export function sendErrorMessage(r: SendResult): string {
+  const hint = (r.twilioCode && TWILIO_ERRORS[r.twilioCode]) || 'שליחת ה-SMS נכשלה.';
+  return `${hint} (קוד Twilio ${r.twilioCode ?? '?'})`;
 }
 
 export async function checkCode(env: Env, fetchFn: Fetch, phone: string, code: string): Promise<boolean> {
