@@ -4,7 +4,7 @@ import { deflateRawSync } from 'node:zlib';
 import {
   parseAmount, parseDate, parseCSV, detectColumns, findHeaderRow, buildTransactions,
   readFileRows, decodeText, parseHTMLTable,
-} from '../js/parser.js';
+} from '../public/js/parser.js';
 
 test('parseAmount handles Israeli formats', () => {
   assert.equal(parseAmount('1,234.56'), 1234.56);

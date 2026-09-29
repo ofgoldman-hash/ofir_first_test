@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaultRules, classify, detectRecurring, summarize, findRule } from '../js/classify.js';
+import { defaultRules, classify, detectRecurring, summarize, findRule } from '../public/js/classify.js';
 
 const tx = (date, description, amount, extra = {}) => classify({ date, description, amount, ...extra }, defaultRules());
 

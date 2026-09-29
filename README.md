@@ -23,30 +23,48 @@
 
 - **הנתונים לא עוזבים את המחשב.** אין שרת. הקבצים מעובדים בדפדפן, והתנועות נשמרות ב-IndexedDB של הדפדפן.
 - **הצפנה** – AES-256-GCM עם מפתח שנגזר מהסיסמה (PBKDF2-SHA256, ‏600,000 סבבים). נשמר רק מידע מוצפן.
-- **חסימת רשת** – Content-Security-Policy קשיח (`connect-src 'none'`), כך שגם בטעות הדף לא יכול לשלוח מידע החוצה.
-- **אין ספריות צד שלישי** – קריאת Excel/CSV ממומשת בקוד של הפרויקט.
+- **חסימת רשת** – Content-Security-Policy קשיח (`connect-src 'none'`) בדף האפליקציה, כך שגם בטעות הדף לא יכול לשלוח מידע החוצה.
+- **כניסה עם קוד SMS** למספרים מורשים בלבד (ראו למטה).
+- **אין ספריות צד שלישי בדפדפן** – קריאת Excel/CSV ממומשת בקוד של הפרויקט.
 - **נעילה אוטומטית** אחרי חוסר פעילות (ברירת מחדל 15 דקות).
 - **גיבוי מוצפן** – הורדת קובץ גיבוי (מוצפן באותה סיסמה) מתוך "הגדרות"; משמש גם להעברה למחשב אחר.
 
 > ⚠ אין שחזור סיסמה. בלי הסיסמה אי אפשר לפענח את הנתונים.
 > ⚠ אל תשמרו תדפיסים בתוך הריפו – `.gitignore` חוסם קבצי csv/xlsx/xls/pdf ליתר ביטחון.
 
-## הפעלה
+## כניסה עם קוד SMS (OTP)
 
-האתר סטטי לגמרי. מספיק להריץ שרת מקומי:
+באתר המפורסם (Netlify) כל הדפים חסומים עד שנכנסים עם קוד חד-פעמי שנשלח ב-SMS דרך **Twilio Verify**,
+ורק למספרים שברשימת המורשים.
+
+- **שער (Edge Function)** – `netlify/edge-functions/gate.ts` בודק לפני כל דף וקובץ שיש עוגיית כניסה חתומה (HMAC, ‏HttpOnly, ‏Secure, ‏SameSite=Strict, תוקף 7 ימים) של מספר שעדיין מורשה. הסרת מספר מנתקת אותו מיד.
+- **מספרים מורשים** נשמרים ב-Netlify Blobs. SMS נשלח רק למספר מורשה, והתשובה זהה בכל מקרה, כך שאי אפשר לבדוק אילו מספרים ברשימה.
+- **ניהול גישה** – `/admin.html` (למנהלים בלבד): הוספה והסרה של מספרים, וסימון מנהלים נוספים.
+- **בעל האתר** – המספר במשתנה `ADMIN_PHONE` תמיד מורשה ותמיד מנהל, ואי אפשר להסיר אותו.
+- הכניסה מגינה על הגישה לאתר. הנתונים עצמם ממשיכים להיות מוצפנים בדפדפן בסיסמה נפרדת.
+
+### הגדרה חד-פעמית
+
+1. ב-Twilio: **Verify → Services → Create new** (שם: "התקציב המשפחתי"), והעתקת ה-**Service SID** (מתחיל ב-`VA`).
+2. ב-Netlify: **Project configuration → Environment variables**, הוספת:
+
+   | משתנה | ערך | סודי |
+   |---|---|---|
+   | `TWILIO_ACCOUNT_SID` | מתחיל ב-`AC` (ב-Twilio Console) | |
+   | `TWILIO_AUTH_TOKEN` | Auth Token מה-Twilio Console | ✔ |
+   | `TWILIO_VERIFY_SERVICE_SID` | מתחיל ב-`VA` | |
+   | `ADMIN_PHONE` | מספר בעל האתר, למשל `0536067630` | |
+
+3. פריסה מחדש (Deploys → Trigger deploy).
+
+סוד חתימת העוגיות נוצר אוטומטית בצד השרת ב-Netlify Blobs ואינו צריך הגדרה.
+
+## הפעלה מקומית
 
 ```bash
-npm start            # python3 -m http.server 8080 --bind 127.0.0.1
-# ופתחו http://localhost:8080
+npm start            # מגיש את public/ ב-http://localhost:8080 (בלי כניסת SMS)
 ```
 
-### פרסום ב-Netlify
-
-ב-Netlify: **Add new site → Import an existing project → GitHub**, בחירת הריפו, ענף `main`.
-את שאר ההגדרות (בלי build, תיקיית פרסום `.`, כותרות אבטחה) Netlify קורא מהקובץ `netlify.toml`.
-Netlify מאחסן רק את הקוד – הנתונים נשארים מוצפנים בדפדפן של כל משתמש.
-
-אפשר גם לפרסם ב-GitHub Pages באותו אופן (בלי כותרות האבטחה הנוספות).
 (Web Crypto דורש https או localhost; פתיחה ישירה של index.html מהדיסק לא תעבוד.)
 
 ## איך להוריד תדפיסים
@@ -60,16 +78,22 @@ Netlify מאחסן רק את הקוד – הנתונים נשארים מוצפנ
 
 | קובץ | תפקיד |
 |---|---|
-| `index.html` | דף יחיד, CSP |
-| `js/crypto.js` | הצפנה/פענוח (Web Crypto) |
-| `js/storage.js` | הכספת המוצפנת ב-IndexedDB, גיבוי/שחזור |
-| `js/parser.js` | קריאת CSV / XLSX / HTML-xls, זיהוי עמודות, תאריכים וסכומים |
-| `js/classify.js` | כללי סיווג, זיהוי תשלומים קבועים, חישוב השכבות והמאזן |
-| `js/charts.js` | גרפי SVG |
-| `js/app.js` | ממשק המשתמש |
+| `public/index.html` | האפליקציה, CSP שחוסם כל תקשורת רשת |
+| `public/js/crypto.js` | הצפנה/פענוח (Web Crypto) |
+| `public/js/storage.js` | הכספת המוצפנת ב-IndexedDB, גיבוי/שחזור |
+| `public/js/parser.js` | קריאת CSV / XLSX / HTML-xls, זיהוי עמודות, תאריכים וסכומים |
+| `public/js/classify.js` | כללי סיווג, זיהוי תשלומים קבועים, חישוב השכבות והמאזן |
+| `public/js/charts.js` | גרפי SVG |
+| `public/js/app.js` | ממשק המשתמש |
+| `public/login.html`, `public/js/login.js` | מסך הכניסה עם קוד SMS |
+| `public/admin.html`, `public/js/admin.js` | ניהול המספרים המורשים |
+| `netlify/edge-functions/gate.ts` | חסימת האתר למי שלא נכנס |
+| `netlify/functions/*.mts` | ‏API: שליחת קוד, אימות, יציאה, ניהול מספרים |
+| `netlify/shared/auth.ts`, `handlers.ts` | לוגיקת הכניסה (עוגיות חתומות, Twilio Verify, רשימת מורשים) |
 
 ## בדיקות
 
 ```bash
-npm test
+npm test             # בדיקות יחידה (כולל כניסה, ניהול מספרים והשער)
+npm run typecheck    # בדיקת טיפוסים לקוד השרת
 ```

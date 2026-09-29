@@ -212,3 +212,8 @@ label.button:focus-within { outline: 2px solid var(--accent); outline-offset: 2p
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .pending-bar { border: 2px solid var(--accent); scroll-margin-top: 110px; }
 .pending-bar button { margin-top: 4px; }
+
+/* login / admin */
+a.tab { color: var(--text); text-decoration: none; padding: 6px 10px; border-radius: 8px; border: 1px solid transparent; }
+a.tab:hover { border-color: var(--border); }
+[hidden] { display: none !important; }

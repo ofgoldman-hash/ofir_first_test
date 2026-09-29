@@ -5,6 +5,8 @@ import { netChart, layersChart, LAYERS } from './charts.js';
 import { esc, money, moneyExact, monthLabel, dateLabel } from './format.js';
 
 const $ = sel => document.querySelector(sel);
+// Login / access management exist only on the hosted site (Netlify), not on a local server.
+const ONLINE = !['localhost', '127.0.0.1', ''].includes(location.hostname);
 const app = $('#app');
 
 const state = {
@@ -128,7 +130,9 @@ function renderShell(content) {
     <strong class="brand">התקציב המשפחתי</strong>
     <nav>${tabs.map(([k, v]) => `<button class="tab${state.view === k ? ' active' : ''}" data-action="nav" data-view="${k}">${v}</button>`).join('')}</nav>
     <span id="status" class="status" aria-live="polite"></span>
-    <button data-action="lock" title="נעילה">🔒 נעילה</button>
+    ${ONLINE ? '<a class="tab" href="/admin.html">ניהול גישה</a>' : ''}
+    <button data-action="lock" title="נעילת הנתונים המוצפנים">🔒 נעילה</button>
+    ${ONLINE ? '<a class="tab" href="/api/auth/logout">יציאה</a>' : ''}
   </header>
   <main>${content}</main>`;
   hydrate();
