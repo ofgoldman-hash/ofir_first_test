@@ -137,7 +137,7 @@ async function unzip(u8) {
     files.set(name, { method, csize, local });
     p += 46 + nameLen + extraLen + commentLen;
   }
-  return async name => {
+  const read = async name => {
     const f = files.get(name);
     if (!f) return null;
     const start = f.local + 30 + dv.getUint16(f.local + 26, true) + dv.getUint16(f.local + 28, true);
@@ -146,7 +146,12 @@ async function unzip(u8) {
     if (!bytes) throw new Error('bad-zip');
     return dec.decode(bytes);
   };
+  read.names = [...files.keys()];
+  return read;
 }
+
+// Some generators (e.g. .NET OpenXML) prefix every tag: <x:row>, <x:c>, <x:t>.
+const stripNs = xml => xml.replace(/<(\/?)[A-Za-z][\w.-]*:(?=[A-Za-z])/g, '<$1');
 
 const xmlText = s => decodeEntities(s.replace(/<[^>]*>/g, ''));
 
@@ -181,18 +186,24 @@ function parseSheetXML(xml, shared) {
 
 export async function readXLSX(u8) {
   const read = await unzip(u8);
-  const sharedXml = await read('xl/sharedStrings.xml');
+  const find = re => read.names.filter(n => re.test(n));
+  const sharedName = find(/(^|\/)sharedStrings\.xml$/i)[0];
+  const sharedXml = sharedName ? stripNs(await read(sharedName)) : null;
   const shared = sharedXml
-    ? [...sharedXml.matchAll(/<si>([\s\S]*?)<\/si>/g)].map(m =>
+    ? [...sharedXml.matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/g)].map(m =>
       [...m[1].replace(/<rPh\b[\s\S]*?<\/rPh>/g, '').matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>/g)]
         .map(t => decodeEntities(t[1])).join(''))
     : [];
-  let best = [];
-  for (let i = 1; i <= 50; i++) {
-    const xml = await read(`xl/worksheets/sheet${i}.xml`);
-    if (xml === null) break;
-    const rows = parseSheetXML(xml, shared);
-    if (rows.length > best.length) best = rows;
+  // Sheet file names vary between exporters; take every worksheet in natural order.
+  const sheets = find(/(^|\/)worksheets\/[^/]+\.xml$/i)
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  let best = [], bestHasHeader = false;
+  for (const name of sheets) {
+    const rows = parseSheetXML(stripNs(await read(name)), shared);
+    const hasHeader = findHeaderRow(rows) >= 0;
+    if ((hasHeader && !bestHasHeader) || (hasHeader === bestHasHeader && rows.length > best.length)) {
+      best = rows; bestHasHeader = hasHeader;
+    }
   }
   return best;
 }
