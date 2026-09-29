@@ -40,7 +40,13 @@ npm start            # python3 -m http.server 8080 --bind 127.0.0.1
 # ופתחו http://localhost:8080
 ```
 
-אפשר גם לפרסם ב-GitHub Pages – הקוד ציבורי, אבל הנתונים נשארים מוצפנים בדפדפן של כל משתמש.
+### פרסום ב-Netlify
+
+ב-Netlify: **Add new site → Import an existing project → GitHub**, בחירת הריפו, ענף `main`.
+את שאר ההגדרות (בלי build, תיקיית פרסום `.`, כותרות אבטחה) Netlify קורא מהקובץ `netlify.toml`.
+Netlify מאחסן רק את הקוד – הנתונים נשארים מוצפנים בדפדפן של כל משתמש.
+
+אפשר גם לפרסם ב-GitHub Pages באותו אופן (בלי כותרות האבטחה הנוספות).
 (Web Crypto דורש https או localhost; פתיחה ישירה של index.html מהדיסק לא תעבוד.)
 
 ## איך להוריד תדפיסים
