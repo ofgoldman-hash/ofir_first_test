@@ -166,3 +166,26 @@ test('gate: redirects pages to login, 401 for files, admin page for admins only'
   assert.equal(await gateCheck(page('/', user), deps), null);
   assert.equal((await gateCheck(page('/admin.html', user), deps)).status, 403);
 });
+
+test('Twilio send errors are explained with their code', async () => {
+  const errors = [];
+  const origError = console.error;
+  console.error = (...a) => errors.push(a);
+  try {
+    const fetchFn = async () => new Response(JSON.stringify({ code: 21608, message: 'The number is unverified. Trial accounts cannot send messages to unverified numbers', status: 400 }), { status: 400 });
+    const deps = { store: memoryStore(), env, fetch: fetchFn };
+    const res = await handleSend(post('/api/auth/send', { phone: OWNER }), deps);
+    assert.equal(res.status, 502);
+    const body = await res.json();
+    assert.equal(body.twilioCode, 21608);
+    assert.match(body.message, /Verified Caller IDs/);
+    assert.match(body.message, /קוד Twilio 21608/);
+    assert.equal(errors.length, 1);
+
+    const unknown = async () => new Response('oops', { status: 500, statusText: 'Server Error' });
+    const res2 = await handleSend(post('/api/auth/send', { phone: OWNER }), { ...deps, fetch: unknown });
+    assert.match((await res2.json()).message, /שליחת ה-SMS נכשלה\. \(קוד Twilio 500\)/);
+  } finally {
+    console.error = origError;
+  }
+});
